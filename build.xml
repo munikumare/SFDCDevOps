@@ -4,7 +4,7 @@
     <property environment="env"/>
     <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
          <classpath>
-               <pathelement location="/Users/Master/software/apache-ant-1.10.3/lib/ant-salesforce.jar" />
+               <pathelement location="/opt/ant/lib/ant-salesforce.jar" />
           </classpath>
     </taskdef>
     <target name="retrieve">
