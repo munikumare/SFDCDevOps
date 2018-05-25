@@ -2,7 +2,7 @@
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <fields>
         <fullName>ContactType__c</fullName>
-        <description>Type of the Contact</description>
+        <description>Type of Contact</description>
         <externalId>false</externalId>
         <inlineHelpText>Choose the Contact Type from pick list</inlineHelpText>
         <label>ContactType</label>
