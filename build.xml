@@ -1,0 +1,36 @@
+<project name="salesforce" default="test" basedir="." xmlns:sf="antlib:com.salesforce">
+
+    <property file="build.properties"/>
+    <property environment="env"/>
+    <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
+         <classpath>
+               <pathelement location="/Users/Master/software/apache-ant-1.10.3/lib/ant-salesforce.jar" />
+          </classpath>
+    </taskdef>
+    <target name="retrieve">
+       <mkdir dir="retrieveSource"/>
+      <sf:retrieve
+        username="${sf.username}"
+        password="${sf.password}"
+        serverurl="${sf.serverurl}"
+        unpackaged="src/package.xml"
+        retrieveTarget="retrieveSource"/>
+    </target>
+    <target name="deploy">
+       <sf:deploy
+        username="${sf.username}"
+        password="${sf.password}"
+        serverurl="${sf.serverurl}"
+        maxpoll="${sf.maxPoll}"
+        deployRoot="retrieveSource"/>
+    </target>
+
+
+    <target name="undeployCode">
+      <sf:deploy username="${sf.username}"
+        password="${sf.password}"
+        serverurl="${sf.serverurl}"
+        deployRoot="undeploy"/>
+    </target>
+
+</project>
