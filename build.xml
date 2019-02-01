@@ -1,13 +1,28 @@
-<project name="SFDCDevOps" default="" basedir="." xmlns:sf="antlib:com.salesforce">
+<project name="SFDCDevOps" default="" basedir="." xmlns:sf="antlib:com.salesforce"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="antlib:com.salesforce">
+        <taskdef resource="net/sf/antcontrib/antlib.xml"/>
+    <!--Variables file-->
+        <property file="build.properties" />
+        <property file="secret.properties" />
+        <property environment="env" />
 
-    <property file="build.properties"/>
-    <property environment="env"/>
-    <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
-         <classpath>
-               <pathelement location="/opt/ant/lib/ant-salesforce.jar" />
-          </classpath>
+        <property name="maxPoll" value="1000" />
+        <property name="defaultPackageFolder" value="package" />
+    <!-- Jar file paths-->
+    <taskdef resource="net/sf/antcontrib/antlib.xml">
+        <classpath>
+            <pathelement location="lib/ant-contrib-1.0b3.jar" />
+        </classpath>
     </taskdef>
+
+    <taskdef resource="com/salesforce/antlib.xml" uri="antlib:com.salesforce">
+        <classpath>
+            <pathelement location="lib/ant-salesforce.jar" />
+        </classpath>
+    </taskdef>
+    <!-- ANT Script to retrieve the package from Source Org -->
     <target name="retrieve">
+
        <mkdir dir="retrieveSource"/>
       <sf:retrieve
         username="${sf.username}"
@@ -16,21 +31,155 @@
         unpackaged="src/package.xml"
         retrieveTarget="retrieveSource"/>
     </target>
+    <!-- ANT Script to execute tests and run deployment on Target Org-->
     <target name="deploy">
-       <sf:deploy
+      <sf:deploy
         username="${sf.username}"
         password="${sf.password}"
         serverurl="${sf.serverurl}"
         maxpoll="${sf.maxPoll}"
-        deployRoot="retrieveSource"/>
+        checkOnly="true"
+        deployRoot="retrieveSource"  testLevel="RunSpecifiedTests">
+      <runTest>WHIPPDFControllerTest</runTest>
+       </sf:deploy>
+    </target>
+    <!-- ANT Script to validate package-->
+    <target name="deployDEV">
+      <sf:deploy
+        username="${sf.username}"
+        password="${sf.password}"
+        serverurl="${sf.serverurl}"
+        maxpoll="${sf.maxPoll}"
+        checkOnly="true"
+        deployRoot="retrieveSource">
+      </sf:deploy>
     </target>
 
-
+    <!-- ANT Script to RollBack SFDC Deployment-->
     <target name="undeployCode">
       <sf:deploy username="${sf.username}"
         password="${sf.password}"
         serverurl="${sf.serverurl}"
+        checkOnly="false"
         deployRoot="undeploy"/>
     </target>
 
+    <!-- ANT Script to compare two src folders based on file Cache-->
+    <target name="CIValidate">
+		<taskdef resource= "net/sf/antcontrib/antcontrib.properties" classpath="lib/ant-contrib-1.0b3.jar"/>
+		<taskdef resource="net/sf/antcontrib/antlib.xml" classpath="lib/ant-contrib-1.0b3.jar"/>
+
+		<delete file = "deploy.zip"/>
+		<delete dir = "deploy"/>
+
+		<for param = "theFile" >
+		<path>
+            <fileset dir ="src" id = "modFileSet">
+                <modified update="false"/>
+			</fileset>
+		</path>
+		<sequential>
+			<echo message = "@{theFile}"/>
+			<var name="varTheFile" unset="true"/>
+			<basename file="@{theFile}" property="varTheFile" />
+			<if>
+				<contains string="@{theFile}" substring="aura"/>
+				<then>
+					<propertyregex
+						property="lightningPackage"
+						input="@{theFile}"
+						regexp="aura\/([^\/]*)\/"
+						select="\1"
+						casesensitive="yes"
+						override = "true"
+					/>
+					<echo message = "${lightningPackage}"/>
+					<copy todir = "deploy">
+						<fileset dir = "src">
+							<filename name = "**/*${lightningPackage}/*" />
+						</fileset>
+					</copy>
+				</then>
+				<else>
+					<copy todir = "deploy" failonerror = "false">
+						<fileset dir = "src">
+							<filename name = "**/*${varTheFile}-meta.xml" />
+						</fileset>
+					</copy>
+					   <copy todir = "deploy">
+						<fileset dir = "src">
+						<filename name = "**/*${varTheFile}" />
+                            </fileset>
+					   </copy>
+				    </else>
+                </if>
+            </sequential>
+        </for>
+
+        <zip destfile = "deploy.zip">
+            <fileset dir = "deploy"/>
+            <fileset dir = "src" includes = "package.xml"/>
+        </zip>
+
+	   <sf:deploy
+            username="${sf.username}"
+            password="${sf.password}"
+            serverurl="${sf.serverurl}"
+            deployroot="codepkg"
+            ignoreWarnings = "true"
+            checkOnly = "true"
+            logType ="Debugonly"
+            />
+	    <delete dir = "deploy"/>
+    </target>
+    <!-- ANT Script to generate packagexml from changeset -->
+    <property name="devPackageFolder" value="package-dev" />
+    <property name="salesforceUrl" value="https://test.salesforce.com" />
+
+    <target name="-prompt" unless="hidePrompt">
+        <input message="${promptMessage}"
+            validargs="y,n"
+            addproperty="do.delete"
+         />
+            <condition property="do.abort">
+            <equals arg1="n" arg2="${do.delete}" />
+            </condition>
+            <fail if="do.abort">Build aborted by user.</fail>
+    </target>
+
+    <macrodef name="retrieve-cs">
+		<attribute name="folder" />
+		<attribute name="prompt" default="true" />
+		<sequential>
+			<condition property="hidePrompt">
+                <or>
+                    <isset property="jenkins"/>
+                    <equals arg1="@{prompt}" arg2="false" />
+                </or>
+            </condition>
+ 
+			<input message="Please enter the name of the change set:"
+				   addproperty="source.changeSetName"
+			/>
+			<property name="promptMessage" value="Are you sure you want to retrieve a change set from the following org?${line.separator}
+			salesforceUrl: ${salesforceUrl}${line.separator}
+			username:      ${username}${line.separator}
+			changeSet:     ${source.changeSetName}${line.separator}
+			folder:        @{folder}${line.separator}" />
+			<antcall target="-prompt" />
+ 
+			<mkdir dir="@{folder}" />
+			<sf:retrieve username="${username}"
+						 password="${password}"
+						 serverurl="${salesforceUrl}"
+						 maxPoll="${maxPoll}"
+						 retrieveTarget="@{folder}"
+						 packageNames="${source.changeSetName}" />
+		</sequential>
+	</macrodef>
+
+    <target name="retrieve-cs" description="Retrieves package metadata components from a specified change set in the source org.">
+        <!--<retrieve-cs folder="${defaultPackageFolder}" /> -->
+        <retrieve-cs folder="changeSet" />
+    </target>
 </project>
