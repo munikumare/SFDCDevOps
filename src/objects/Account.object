@@ -91,11 +91,11 @@
                 <sorted>false</sorted>
                 <value>
                     <fullName>Commercial</fullName>
-                    <default>true</default>
+                    <default>false</default>
                 </value>
                 <value>
                     <fullName>Non-Commercial</fullName>
-                    <default>false</default>
+                    <default>true</default>
                 </value>
             </valueSetDefinition>
         </valueSet>
